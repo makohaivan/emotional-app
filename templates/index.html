@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Face Emotion Detector</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>Face Emotion Detector</h1>
+
+    <div class="video-wrap">
+      <video id="video" autoplay playsinline width="320" height="240"></video>
+      <canvas id="canvas" width="320" height="240" style="display:none;"></canvas>
+    </div>
+
+    <div class="controls">
+      <button id="snap" class="btn">Detect Emotion</button>
+      <button id="historyBtn" class="btn alt">Show History (console)</button>
+    </div>
+
+    <div id="result" class="result">Press <strong>Detect Emotion</strong> to start</div>
+    <div id="note" class="note">Allow camera access when the browser asks.</div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
