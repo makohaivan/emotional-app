@@ -5,3 +5,4 @@ numpy
 Pillow
 tensorflow>=2.20.0
 keras
+moviepy==1.0.3
