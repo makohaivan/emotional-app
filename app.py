@@ -14,6 +14,7 @@ Open in browser: http://127.0.0.1:5000
 import base64
 import io
 import sqlite3
+import os  # ← ADD THIS IMPORT
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 from PIL import Image
@@ -144,5 +145,5 @@ def history():
 
 # ---------- Run ----------
 if __name__ == "__main__":
-    # debug=True is helpful while developing; set to False in production
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    port = int(os.environ.get("PORT", 5000))  # Use Render's PORT or default to 5000
+    app.run(host="0.0.0.0", port=port, debug=False)  # debug=False for production
