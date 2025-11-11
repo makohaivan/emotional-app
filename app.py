@@ -1,37 +1,26 @@
 """
-app.py
-Minimal Flask app that:
-- Serves a simple webpage (templates/index.html)
-- Accepts a base64 image POST at /predict
-- Uses the `fer` package to detect emotion from the image
-- Stores each prediction in a small SQLite database (database.db)
-
-Run:
-    python app.py
-Open in browser: http://127.0.0.1:5000
+app.py - Fixed version with delayed imports
 """
 
 import base64
 import io
 import sqlite3
-import os  # ← ADD THIS IMPORT
+import os
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 from PIL import Image
 import numpy as np
 import cv2
-from fer import FER
 
 # ---------- Config ----------
-DB_PATH = "database.db"         # SQLite file
-FER_MT_CNN = True               # set to False if mtcnn causes issues
+DB_PATH = "database.db"
+FER_MT_CNN = True
 # ----------------------------
 
 app = Flask(__name__)
 
-# Initialize the FER detector once (reuse for all requests)
-detector = FER(mtcnn=FER_MT_CNN)
-
+# DON'T initialize FER here - it blocks the app startup
+# detector = FER(mtcnn=FER_MT_CNN)
 
 # ---------- Database helpers ----------
 def init_db():
@@ -51,7 +40,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-
 def save_prediction(emotion: str, confidence: float):
     """Insert a prediction row into the database."""
     conn = sqlite3.connect(DB_PATH)
@@ -63,10 +51,7 @@ def save_prediction(emotion: str, confidence: float):
     conn.commit()
     conn.close()
 
-
-# initialize DB on startup
 init_db()
-
 
 # ---------- Utility: image conversion ----------
 def data_url_to_cv2_image(data_url: str):
@@ -75,16 +60,15 @@ def data_url_to_cv2_image(data_url: str):
     Returns None on failure.
     """
     try:
-        header, encoded = data_url.split(",", 1)  # split off metadata
+        header, encoded = data_url.split(",", 1)
     except ValueError:
         return None
 
     binary = base64.b64decode(encoded)
     pil_img = Image.open(io.BytesIO(binary)).convert("RGB")
-    arr = np.array(pil_img)               # RGB order (H, W, 3)
+    arr = np.array(pil_img)
     bgr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
     return bgr
-
 
 # ---------- Routes ----------
 @app.route("/")
@@ -92,13 +76,20 @@ def index():
     """Serve the homepage (templates/index.html)."""
     return render_template("index.html")
 
+@app.route("/health")
+def health():
+    """Health check endpoint that responds immediately."""
+    return jsonify({"status": "healthy"})
 
 @app.route("/predict", methods=["POST"])
 def predict():
     """
     Accepts JSON payload: { "image": "<data_url>" }
-    Returns JSON: { "emotion": "happy", "confidence": 0.98 } or a helpful error message.
     """
+    # Import FER inside the route to avoid blocking app startup
+    from fer import FER
+    detector = FER(mtcnn=FER_MT_CNN)
+    
     payload = request.get_json(silent=True)
     if not payload or "image" not in payload:
         return jsonify({"error": "Missing 'image' in JSON body"}), 400
@@ -107,31 +98,25 @@ def predict():
     if cv_img is None:
         return jsonify({"error": "Invalid image data"}), 400
 
-    # Use FER to detect emotions. Returns list of faces with emotion scores.
+    # Use FER to detect emotions
     faces = detector.detect_emotions(cv_img)
     if not faces:
         return jsonify({"emotion": None, "confidence": 0.0, "message": "No face detected"})
 
-    # take the first detected face (for simple demos)
     emotions = faces[0].get("emotions", {})
     if not emotions:
         return jsonify({"emotion": None, "confidence": 0.0, "message": "No emotion scores"})
 
-    # find the emotion with the highest score
     emotion = max(emotions, key=emotions.get)
     confidence = float(emotions[emotion])
 
-    # record result in DB
     save_prediction(emotion, confidence)
-
     return jsonify({"emotion": emotion, "confidence": confidence})
-
 
 @app.route("/history")
 def history():
     """
-    Returns last 100 predictions as JSON:
-    { "history": [ { "timestamp": "...", "emotion": "...", "confidence": 0.95 }, ... ] }
+    Returns last 100 predictions as JSON
     """
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -142,8 +127,7 @@ def history():
     data = [{"timestamp": r[0], "emotion": r[1], "confidence": r[2]} for r in rows]
     return jsonify({"history": data})
 
-
 # ---------- Run ----------
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # Use Render's PORT or default to 5000
-    app.run(host="0.0.0.0", port=port, debug=False)  # debug=False for production
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)
